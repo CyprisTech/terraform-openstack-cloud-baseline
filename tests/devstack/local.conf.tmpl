@@ -1,0 +1,44 @@
+# DevStack configuration of the test bench (spec: docs/specs/devstack-test-bench.md).
+# install.sh renders it: @HOST_IP@ and @PASSWORD@ are replaced; the result is not kept in git.
+
+[[local|localrc]]
+HOST_IP=@HOST_IP@
+ADMIN_PASSWORD=@PASSWORD@
+DATABASE_PASSWORD=@PASSWORD@
+RABBIT_PASSWORD=@PASSWORD@
+SERVICE_PASSWORD=@PASSWORD@
+
+GIT_BASE=https://opendev.org
+LOGFILE=/opt/stack/logs/stack.sh.log
+LOG_COLOR=False
+
+# Only what the tests need.
+disable_service horizon tempest swift c-bak etcd3 dstat
+enable_plugin designate https://opendev.org/openstack/designate stable/2026.1
+
+# Instances with KVM (nested virtualization), the host's CPU model.
+LIBVIRT_TYPE=kvm
+LIBVIRT_CPU_MODE=host-passthrough
+
+# Block storage: a file-backed LVM volume group.
+VOLUME_BACKING_FILE_SIZE=24G
+
+# Neutron with OVN. DevStack creates no network: the external and shared networks are
+# created by cloud-baseline, since that is what is tested. One physical network per
+# simulated operator plane, each on its own bridge (planes.sh creates the bridges, the
+# OVN mapping to them, and what lies behind them).
+Q_AGENT=ovn
+Q_ML2_PLUGIN_MECHANISM_DRIVERS=ovn
+Q_ML2_TENANT_NETWORK_TYPE=geneve
+ENABLE_CHASSIS_AS_GW=True
+NEUTRON_CREATE_INITIAL_NETWORKS=False
+PUBLIC_BRIDGE=br-internet
+PHYSICAL_NETWORK=internet
+Q_USE_PROVIDERNET_FOR_PUBLIC=False
+Q_ML2_PLUGIN_FLAT_TYPE_OPTIONS=flat_networks=internet,intranet,publication,routed
+# The bridge of each plane and the OVN mapping to it are set by planes.sh.
+
+# Step 2 of the spec: uncomment to add Octavia (amphora driver).
+#enable_plugin octavia https://opendev.org/openstack/octavia stable/2026.1
+#enable_service octavia o-api o-cw o-hm o-hk o-da
+

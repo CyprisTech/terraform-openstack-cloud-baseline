@@ -1,0 +1,15 @@
+# gitleaks configuration: the default rules, and one allowlist.
+# The module's input names a password *mode* ("generate", "input" or "none"); the rule
+# hashicorp-tf-password takes `password.mode == "generate"` for a password. Only that pattern is
+# allowed: any other value assigned to a password is still reported.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "password modes of the module's input, not passwords"
+regexTarget = "line"
+regexes = [
+  '''password(\.mode)?\s*(==|:|=)\s*("?(generate|input|none)"?|REDACTED)''',
+  '''password mode''',
+]

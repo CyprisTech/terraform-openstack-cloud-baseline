@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate (${{ matrix.tool }} ${{ matrix.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Lowest supported versions and latest, for both tools
+          - { tool: tofu, version: "1.9.0" }
+          - { tool: tofu, version: "latest" }
+          - { tool: terraform, version: "1.9.0" }
+          - { tool: terraform, version: "latest" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - if: matrix.tool == 'tofu'
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ matrix.version }}
+          tofu_wrapper: false
+
+      - if: matrix.tool == 'terraform'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ matrix.version }}
+          terraform_wrapper: false
+
+      - name: fmt
+        run: ${{ matrix.tool }} fmt -check -recursive -diff
+
+      - name: init and validate the module, the examples and the bench configurations
+        run: |
+          for d in . examples/*/ tests/devstack/host tests/devstack/scenarios/*/; do
+            echo "::group::$d"
+            ${{ matrix.tool }} -chdir="$d" init -backend=false -input=false
+            ${{ matrix.tool }} -chdir="$d" validate
+            echo "::endgroup::"
+          done
+
+  tflint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+      - run: tflint --init
+      # The module and the bench configurations; warnings fail the job.
+      - run: tflint --recursive --format compact
+
+  test:
+    name: test (${{ matrix.tool }} ${{ matrix.version }}, mocked providers)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest supported versions and latest, as for validate: validation
+        # rules can behave differently between versions.
+        tool: [tofu, terraform]
+        version: ["1.9.0", latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - if: matrix.tool == 'tofu'
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ matrix.version }}
+          tofu_wrapper: false
+
+      - if: matrix.tool == 'terraform'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ matrix.version }}
+          terraform_wrapper: false
+
+      - run: ${{ matrix.tool }} init -backend=false -input=false
+      - run: ${{ matrix.tool }} test
+
+  docs:
+    name: README reference up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: terraform-docs
+        run: |
+          curl -sSLo tfd.tgz https://github.com/terraform-docs/terraform-docs/releases/download/v0.24.0/terraform-docs-v0.24.0-linux-amd64.tar.gz
+          tar xzf tfd.tgz terraform-docs && rm tfd.tgz
+          ./terraform-docs .
+          rm terraform-docs
+          git diff --exit-code -- README.md
+
+  links:
+    name: documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: links and anchors resolve, every page reachable from README.md
+        run: python3 tests/docs/check_links.py
+
+  shellcheck:
+    name: bench scripts (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: shellcheck tests/devstack/*.sh tests/devstack/host/*.sh
+
+  secrets:
+    name: gitleaks (full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: >
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1
+          git /repo --no-banner --redact --verbose
+
+  misconfig:
+    name: trivy config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          exit-code: "1"
+          severity: HIGH,CRITICAL
