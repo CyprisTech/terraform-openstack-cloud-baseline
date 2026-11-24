@@ -61,7 +61,7 @@ Every release also has tests with a mocked provider for the model: keys, referen
 1. The bench, steps 0 and 1 ([spec](devstack-test-bench.md)).
 2. `v0.1`: the model and its mocked tests, then the resources by domain (identity, projects and quotas, compute and images, networks, security groups, DNS), each with its checks on the bench, then the output contract and the guides.
 3. Publication of `v0.1` on the registries; terraform-openstack-tenant refers to it.
-4. `v0.2` with the bench's step 2 (Octavia). The routed planes (no address translation, static routes; BGP documented, not tested) and the operator segments are tested by the reference's `v0.7`, on the bench's step 3.
+4. `v0.2` with the bench's step 2 (Octavia). The routed planes (no address translation, the routes BGP advertises set statically on the bench; the BGP session documented, not tested) and the operator segments are tested by the reference's `v0.7`, on the bench's step 3.
 
 ## Proposed decisions
 

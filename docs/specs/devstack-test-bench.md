@@ -67,7 +67,7 @@ Out of scope:
    - Destroy, then check that nothing is left.
 2. **The reference in gateway mode.** The operator planes produced by the module are the reference's inputs. Deploy the shared stacks, the entry point, the `vm` tenants (public, and private: no exposure, no egress), then run `check.py`, without the lines that involve Kubernetes.
 3. **Routed planes and segments.**
-   - The module creates an address scope and a subnet pool on the `routed` plane; a tenant router reaches it without SNAT. `ns-operator` holds static routes to the tenant prefixes; routes learned by BGP stay documented, not tested (decided on 2026-11-19).
+   - The module creates an address scope and a subnet pool on the `routed` plane; a tenant router reaches it without SNAT. The target is a plane routed by BGP: the operator learns the tenant prefixes from Neutron's BGP speaker. On the bench, `ns-operator` holds the same routes statically, in place of the BGP session: the routed behaviour is tested (no translation, prefixes from the scope, reachability from `ns-onprem`), the BGP session itself is not (decided on 2026-11-19); the module's BGP speaker and peers are covered by mocked tests.
    - The module creates one provider segment (VLAN) per project, owned by the operator and shared with that project only by RBAC; the reference's tenants adopt them with no router (the reference's spec of operator segments).
    - New isolation lines: a tenant reachable from `ns-onprem` without NAT; a prefix overlapping another scope refused; no path between two scopes; no path from a segment to another project's segment other than through `ns-gateway`.
 
@@ -86,7 +86,7 @@ Each step is delivered and tested on its own, with an exit criterion and a fallb
 | 0 | One node, OVN, Designate; planes simulated | `install.sh` succeeds from scratch; a `member` user boots an instance that reaches `ns-internet` and `ns-onprem` through networks created by hand | none: this is the base |
 | 1 | Scenario 1 | all checks pass, then destroy without leftover | none |
 | 2 | Octavia, scenario 2 | a load balancer active in under 5 minutes; `check.py` passes | without nested virtualization, the entry point stays tested on a full cloud |
-| 3 | Scenario 3 | static routes and segments, with the new isolation lines | none |
+| 3 | Scenario 3 | routed planes (static routes in place of BGP) and segments, with the new isolation lines | none |
 
 Steps 0 and 1 serve `cloud-baseline` `v0.1`. Step 3 serves the reference's `v0.7`.
 
@@ -108,4 +108,4 @@ Steps 0 and 1 serve `cloud-baseline` `v0.1`. Step 3 serves the reference's `v0.7
 
 - **Nested virtualization**: enabled on the hosting cloud's compute nodes (2026-11-13); `install.sh` warns when `/dev/kvm` is missing, to check again at the first run of step 2.
 - **The Octavia amphora image**: built by DevStack at each `stack.sh`, like the bench itself, which is rebuilt rather than stored. An image built for another OpenStack release (that of the hosting cloud) is not reused: the amphora agent follows the controller's release.
-- **BGP**: not on the bench. The routed planes are tested with static routes on the operator's side; BGP is documented, not tested.
+- **BGP**: the routed planes target BGP; on the bench, static routes on the operator's side stand in for the routes BGP would advertise. The routed behaviour is tested, the BGP session is documented, not tested.
