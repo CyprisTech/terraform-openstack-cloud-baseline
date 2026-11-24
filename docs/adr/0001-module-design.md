@@ -121,5 +121,5 @@ baseline = {
 ## Consequences
 
 - terraform-openstack-tenant removes `cloud-baseline` from its roadmap and refers to this repository; its ADR-0001 D4 is refined by this ADR.
-- The reference's `v0.6` (routed planes) relies on address scopes and subnet pools from this module, tested on the bench.
+- The reference's `v0.7` (routed planes) relies on address scopes and subnet pools from this module, tested on the bench.
 - Open questions for the specification: the order of the first releases; image acceptance on behalf of a project; Octavia flavors and availability zones (admin objects useful to the entry point); application credentials for the tenant stacks.

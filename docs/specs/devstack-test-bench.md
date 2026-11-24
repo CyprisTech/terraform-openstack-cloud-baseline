@@ -1,13 +1,13 @@
 # Spec: a DevStack test bench
 
 - **Status:** Proposed
-- **Related:** the `cloud-baseline` module design (ADR-0001, to be written); [openstack-multitenant-reference](https://github.com/CyprisTech/openstack-multitenant-reference), whose `v0.6` (routed operator planes) needs the same bench
+- **Related:** the `cloud-baseline` module design (ADR-0001, to be written); [openstack-multitenant-reference](https://github.com/CyprisTech/openstack-multitenant-reference), whose `v0.7` (routed operator planes and operator segments) needs the same bench
 
 ## Problem
 
 `cloud-baseline` creates objects that need the `admin` role: projects, quotas, users, role assignments, aggregates, flavors, images, provider networks, address scopes, subnet pools, shared security groups and DNS zones. Its tests cannot run in a project with the `member` role, and they must not run against a production cloud: a wrong plan there changes every tenant at once.
 
-The reference has the same need for its routed operator planes (`v0.6`): address scopes, subnet pools and an operator router that learns the tenant prefixes, statically or by BGP, tested on a cloud whose operator planes we control. Its availability zones (`v0.5`) need no bench: the reference tests their placement with mocked providers ([ADR-0011](https://github.com/CyprisTech/openstack-multitenant-reference/blob/main/docs/adr/0011-resilience-scope.md) of the reference).
+The reference has the same need for its routed operator planes and the segments an operator gives each project (`v0.7`): address scopes, subnet pools and an operator router that holds routes to the tenant prefixes, and provider segments behind an operator gateway, tested on a cloud whose operator planes we control. Its availability zones (`v0.5`) need no bench: the reference tests their placement with mocked providers ([ADR-0011](https://github.com/CyprisTech/openstack-multitenant-reference/blob/main/docs/adr/0011-resilience-scope.md) of the reference).
 
 ## Goal
 
@@ -51,6 +51,7 @@ Out of scope:
 | `intranet` | `br-intranet` | an operator plane towards on-premises networks | namespace `ns-onprem`: a client and a small HTTP service |
 | `publication` | `br-publication` | the plane on which services are published | namespace `ns-consumer`: a client |
 | `routed` | `br-routed` | a routed operator plane, without NAT (step 3) | namespace `ns-operator`: an FRR router, also attached to `ns-onprem` |
+| `segments` (VLAN) | `br-segments` | one segment per project, behind the operator's gateway (step 3) | namespace `ns-gateway`: the operator's gateway, one VLAN interface per segment, routing and filtering between the segments and towards the other planes' namespaces |
 
 - A script `tests/devstack/planes.sh up|down|status` creates the bridges, the veth pairs and the namespaces, with fixed documentation prefixes (RFC 5737 and RFC 1918 ranges chosen for the bench). It is idempotent.
 - Bridges persist across reboots; namespaces do not. A oneshot systemd unit runs `planes.sh up` at boot.
@@ -64,11 +65,11 @@ Out of scope:
    - Take over hand-made objects with `import` blocks.
    - Log in as a `member` user and check what is visible: networks shared by RBAC, the shared security groups, an accepted image, a shared DNS zone, a zone created for the project.
    - Destroy, then check that nothing is left.
-2. **The reference in gateway mode.** The operator planes produced by the module are the reference's inputs. Deploy the shared stacks, the entry point, the `vm` and `isolated` tenants, then run `check.py`, without the lines that involve Kubernetes.
-3. **Routed planes.** The module creates an address scope and a subnet pool on the `routed` plane; a tenant router reaches it without SNAT.
-   - First, `ns-operator` holds static routes to the tenant prefixes.
-   - Then the same prefixes are learned by BGP.
-   - New isolation lines: a tenant reachable from `ns-onprem` without NAT; a prefix overlapping another scope refused; no path between two scopes.
+2. **The reference in gateway mode.** The operator planes produced by the module are the reference's inputs. Deploy the shared stacks, the entry point, the `vm` tenants (public, and private: no exposure, no egress), then run `check.py`, without the lines that involve Kubernetes.
+3. **Routed planes and segments.**
+   - The module creates an address scope and a subnet pool on the `routed` plane; a tenant router reaches it without SNAT. `ns-operator` holds static routes to the tenant prefixes; routes learned by BGP stay documented, not tested (decided on 2026-11-19).
+   - The module creates one provider segment (VLAN) per project, owned by the operator and shared with that project only by RBAC; the reference's tenants adopt them with no router (the reference's spec of operator segments).
+   - New isolation lines: a tenant reachable from `ns-onprem` without NAT; a prefix overlapping another scope refused; no path between two scopes; no path from a segment to another project's segment other than through `ns-gateway`.
 
 ### 5. Rebuild and snapshot
 
@@ -85,9 +86,9 @@ Each step is delivered and tested on its own, with an exit criterion and a fallb
 | 0 | One node, OVN, Designate; planes simulated | `install.sh` succeeds from scratch; a `member` user boots an instance that reaches `ns-internet` and `ns-onprem` through networks created by hand | none: this is the base |
 | 1 | Scenario 1 | all checks pass, then destroy without leftover | none |
 | 2 | Octavia, scenario 2 | a load balancer active in under 5 minutes; `check.py` passes | without nested virtualization, the entry point stays tested on a full cloud |
-| 3 | Scenario 3 | static routes, then BGP, with the new isolation lines | BGP documented and not tested |
+| 3 | Scenario 3 | static routes and segments, with the new isolation lines | none |
 
-Steps 0 and 1 serve `cloud-baseline` `v0.1`. Step 3 serves the reference's `v0.6`.
+Steps 0 and 1 serve `cloud-baseline` `v0.1`. Step 3 serves the reference's `v0.7`.
 
 ## Proposed decisions
 
@@ -97,11 +98,14 @@ Steps 0 and 1 serve `cloud-baseline` `v0.1`. Step 3 serves the reference's `v0.6
 - **One pinned stable branch**, a maintained SLURP release, other than the one of the full cloud the reference is tested on.
 - **A disposable bench**: rebuilt by script (or restored from an optional snapshot), never repaired by hand, never upgraded.
 - **One node.** Availability zones are not tested on the bench; the reference tests their placement with mocked providers.
-- **The bench lives in this repository** (`tests/devstack/`); the reference links to it for its `v0.6` tests.
+- **The bench lives in this repository** (`tests/devstack/`); the reference links to it for its `v0.7` tests.
 
 ## Open questions
 
-- **Nested virtualization** on the hosting compute node: available, or must step 2 fall back?
 - **Package mirrors**: instances reach the Internet through the host's NAT. A local cache (an apt proxy) would protect the runs from a slow or failing mirror.
-- **The Octavia amphora image**: built by DevStack at each `stack.sh` (long), or built once and uploaded?
-- **BGP with OVN on `2025.1`**: `neutron-dynamic-routing` (BGP speaker and its agent) or `ovn-bgp-agent`. The service plugin built into Neutron for OVN only appears in later releases. To be settled at step 3.
+
+## Settled
+
+- **Nested virtualization**: enabled on the hosting cloud's compute nodes (2026-11-13); `install.sh` warns when `/dev/kvm` is missing, to check again at the first run of step 2.
+- **The Octavia amphora image**: built by DevStack at each `stack.sh`, like the bench itself, which is rebuilt rather than stored. An image built for another OpenStack release (that of the hosting cloud) is not reused: the amphora agent follows the controller's release.
+- **BGP**: not on the bench. The routed planes are tested with static routes on the operator's side; BGP is documented, not tested.

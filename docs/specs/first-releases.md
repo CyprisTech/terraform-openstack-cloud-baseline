@@ -17,7 +17,7 @@ A first release usable on its own: an operator lays the foundation of a landing 
 
 | Release | Content | Why in this order |
 |---|---|---|
-| `v0.1` | Projects and quotas (compute, network, block storage); users, groups, memberships and role assignments, roles adopted by name; flavors, public or restricted; images and their sharing; external and shared networks with RBAC; address scopes and subnet pools, shared by RBAC, and subnets taken from a pool; host aggregates and availability zones; the catalogue of shared security groups; DNS zones for a project or shared; adoption (`existing`) and the takeover guide; the output contract | What the reference's current scenario needs from the operator, plus the objects of its routed planes (its `v0.6`) and of a cloud with several zones (its `v0.5`): small, and testable on the one-node bench |
+| `v0.1` | Projects and quotas (compute, network, block storage); users, groups, memberships and role assignments, roles adopted by name; flavors, public or restricted; images and their sharing; external and shared networks with RBAC; address scopes and subnet pools, shared by RBAC, and subnets taken from a pool; host aggregates and availability zones; the catalogue of shared security groups; DNS zones for a project or shared; adoption (`existing`) and the takeover guide; the output contract | What the reference's current scenario needs from the operator, plus the objects of its routed planes (its `v0.7`) and of a cloud with several zones (its `v0.5`): small, and testable on the one-node bench |
 | `v0.2` | Octavia flavors, flavor profiles and availability zones; load balancer and DNS quotas | Needs Octavia on the bench (its step 2); the load balancer topology (active/standby) is an Octavia flavor |
 
 Merged into `v0.1` on 2026-11-14: address scopes, subnet pools and aggregates were planned for `v0.2` and `v0.3`; the code is small and the one-node bench tests them. What a routed plane does (a tenant reached without address translation, routes learned by BGP) is the reference's test, not the module's.
@@ -61,7 +61,7 @@ Every release also has tests with a mocked provider for the model: keys, referen
 1. The bench, steps 0 and 1 ([spec](devstack-test-bench.md)).
 2. `v0.1`: the model and its mocked tests, then the resources by domain (identity, projects and quotas, compute and images, networks, security groups, DNS), each with its checks on the bench, then the output contract and the guides.
 3. Publication of `v0.1` on the registries; terraform-openstack-tenant refers to it.
-4. `v0.2` with the bench's step 2 (Octavia). The routed planes (no address translation, BGP) are tested by the reference's `v0.6`, on the bench's step 3.
+4. `v0.2` with the bench's step 2 (Octavia). The routed planes (no address translation, static routes; BGP documented, not tested) and the operator segments are tested by the reference's `v0.7`, on the bench's step 3.
 
 ## Proposed decisions
 
