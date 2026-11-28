@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The CodeQL actions move together: one pull request for the three.
+    groups:
+      codeql:
+        patterns: ["github/codeql-action*"]
   - package-ecosystem: terraform
     directory: /
     schedule:
